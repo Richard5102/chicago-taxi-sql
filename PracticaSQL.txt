@@ -1,0 +1,41 @@
+
+WITH
+  baseTable AS (
+  SELECT
+    taxi_id,
+    CAST(DATE_TRUNC(trip_start_timestamp,month) AS date) AS mes,
+    SUM(trip_total) AS total,
+    COUNT(*) AS num_viajes
+  FROM
+    anahuac-bi-etl-lender.taxi.partitioned_trips
+  GROUP BY
+    ALL
+  ORDER BY
+    taxi_id,
+    mes)
+SELECT
+  taxi_id,
+  mes,
+  total,
+  num_viajes,
+  ROW_NUMBER() OVER (PARTITION BY taxi_id ORDER BY mes) AS rn,
+
+  (SUM(total) OVER (PARTITION BY taxi_id ORDER BY mes ROWS BETWEEN 5 PRECEDING AND 0 FOLLOWING))/(SUM(num_viajes) OVER (PARTITION BY taxi_id ORDER BY mes ROWS BETWEEN 5 PRECEDING AND 0 FOLLOWING)) ticket_promedio_ult6m, 
+
+  (SUM(num_viajes) OVER (PARTITION BY taxi_id ORDER BY mes ROWS BETWEEN 5 PRECEDING AND CURRENT ROW)) AS suma_viajes__ult6m, 
+  CASE 
+    WHEN LAG(num_viajes) OVER (PARTITION BY taxi_id ORDER BY mes) IS NOT NULL THEN 
+      ((AVG(num_viajes) OVER (PARTITION BY taxi_id ORDER BY mes ROWS BETWEEN 9 PRECEDING AND CURRENT ROW))/num_viajes - 1) * 100 
+    ELSE NULL 
+  END AS delta_viajes,
+  CASE 
+    WHEN LEAD(mes) OVER (PARTITION BY taxi_id ORDER BY mes) IS NULL THEN 1
+    ELSE 0
+  END AS desaparecio
+
+FROM
+  baseTable
+where taxi_id = '0041f8f0c91881c1e1913f2548522495fe3c4c719aa67fd2483ebbcc22e0aa1bfff2cddb32c35cde3ad9766b0e8d44c04ff5dfdcf1035462ba81a13e3ba6b8f9'
+#00110971c7c4a7173fcf93f49a22d6b9b0a02c27c4b9f8a1d4b3d8444b7d49cf690beb04d02d6a5119874a0621e8aff2d76d8ec1df1dd4ad4d674263ca817731
+
+order by taxi_id,mes
